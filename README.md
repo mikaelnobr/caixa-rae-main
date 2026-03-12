@@ -35,7 +35,7 @@ Este repositório contém a aplicação Streamlit para o CAIXA RAE.
 
 ## Implantação com Docker em Oracle VM (Automatizada via GitHub Actions)
 
-Esta aplicação é implantada usando o Docker Compose com um proxy reverso Nginx. As implantações são totalmente automatizadas via GitHub Actions ao enviar (push) para a branch `main`.
+Esta aplicação é implantada usando o Docker Compose com um proxy reverso Nginx. As implantações são totalmente automatizadas via GitHub Actions ao enviar (push) para a branch `master`.
 
 **CRÍTICO**: Certifique-se de nunca commitar o `.env` ou o `service_account.json` no repositório. Os arquivos `.gitignore` e `.dockerignore` estão configurados para evitar isso.
 
@@ -86,7 +86,7 @@ Para permitir que o GitHub Actions copie os arquivos com segurança e execute co
 
 Assim que os segredos estiverem configurados e os arquivos de segredos iniciais forem enviados para a VM:
 
-1. Faça o commit e o push do seu código para a branch `main`.
+1. Faça o commit e o push do seu código para a branch `master`.
 2. Acesse a aba **Actions** no seu repositório GitHub para acompanhar a execução da implantação.
 3. Assim que for concluído, acesse a aplicação em `http://<ip-da-sua-vm>/`.
 

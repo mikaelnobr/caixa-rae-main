@@ -79,5 +79,6 @@ def generate_excel(dados: Dict[str, Any], resp_selecionado: str) -> Tuple[bytes,
     out = BytesIO()
     wb.save(out)
 
-    primeiro_nome = str(dados.get("proponente", "LAUDO")).split()[0].upper()
+    proponente_str = str(dados.get("proponente", "")).strip()
+    primeiro_nome = proponente_str.split()[0].upper() if proponente_str else "LAUDO"
     return out.getvalue(), primeiro_nome
