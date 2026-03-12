@@ -1,14 +1,43 @@
 #!/bin/bash
-
 # Configuration
 domains=(extrator-rae.duckdns.org)
 rsa_key_size=4096
 data_path="./certbot"
-email="admin@extrator-rae.duckdns.org" # Provided a default since Let's Encrypt requires one
 staging=0 # Set to 1 if you're testing your setup to avoid hitting request limits
+
+# Load .env
+if [ -f ".env" ]; then
+  export $(grep -v '^#' .env | xargs)
+fi
+
+# Validate CERTBOT_EMAIL
+if [ -z "$CERTBOT_EMAIL" ]; then
+  echo "ERROR: CERTBOT_EMAIL is not set in .env"
+  exit 1
+fi
 
 # Enable exit on error
 set -e
+
+# Check DNS resolution before proceeding
+echo "### Checking DNS resolution for ${domains[0]} ..."
+MAX_RETRIES=10
+RETRY_INTERVAL=15
+for i in $(seq 1 $MAX_RETRIES); do
+  RESOLVED_IP=$(getent hosts "${domains[0]}" | awk '{ print $1 }' || true)
+  if [ -n "$RESOLVED_IP" ]; then
+    echo "DNS resolved: ${domains[0]} -> $RESOLVED_IP"
+    break
+  fi
+  echo "DNS not resolved yet. Attempt $i/$MAX_RETRIES. Retrying in ${RETRY_INTERVAL}s..."
+  sleep $RETRY_INTERVAL
+  if [ $i -eq $MAX_RETRIES ]; then
+    echo "ERROR: Could not resolve ${domains[0]} after $MAX_RETRIES attempts."
+    echo "Please check your DuckDNS configuration and try again."
+    exit 1
+  fi
+done
+echo
 
 if [ -d "$data_path" ]; then
   read -p "Existing data found for $domains. Continue and replace existing certificate? (y/N) " decision
@@ -35,7 +64,6 @@ docker compose run --rm --entrypoint "\
     -subj '/CN=localhost'" certbot
 echo
 
-
 echo "### Starting nginx ..."
 docker compose up --force-recreate -d nginx
 echo
@@ -47,19 +75,12 @@ docker compose run --rm --entrypoint "\
   rm -Rf /etc/letsencrypt/renewal/$domains.conf" certbot
 echo
 
-
 echo "### Requesting Let's Encrypt certificate for $domains ..."
-#Join $domains to -d args
+# Join $domains to -d args
 domain_args=""
 for domain in "${domains[@]}"; do
   domain_args="$domain_args -d $domain"
 done
-
-# Select appropriate email arg
-case "$email" in
-  "") email_arg="--register-unsafely-without-email" ;;
-  *) email_arg="--email $email" ;;
-esac
 
 # Enable staging mode if needed
 if [ $staging != "0" ]; then staging_arg="--staging"; fi
@@ -67,7 +88,7 @@ if [ $staging != "0" ]; then staging_arg="--staging"; fi
 docker compose run --rm --entrypoint "\
   certbot certonly --webroot -w /var/www/certbot \
     $staging_arg \
-    $email_arg \
+    --email $CERTBOT_EMAIL \
     $domain_args \
     --rsa-key-size $rsa_key_size \
     --agree-tos \

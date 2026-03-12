@@ -36,7 +36,7 @@ jobs:
             cd ~/caixa-rae
 
             docker compose build
-            
+
             # Initialize Let's Encrypt certificates if they don't exist
             if [ ! -d "./certbot/conf/live/extrator-rae.duckdns.org" ]; then
               echo "Certificates not found. Running initialization script..."
