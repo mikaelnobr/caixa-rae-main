@@ -49,16 +49,32 @@ fi
 echo "IP atualizado no DuckDNS."
 
 # --- CRIAR DIRETORIOS ---------------------------------------------------------
-mkdir -p ./certbot/conf ./certbot/www
+mkdir -p ./certbot/conf/live/$DOMAIN ./certbot/www
 
-# --- CERTIFICADO DUMMY (para o nginx subir antes do certbot) ------------------
-# O nginx.conf referencia os arquivos de certificado, entao eles precisam
-# existir antes do container subir, mesmo que sejam temporarios.
+# --- ARQUIVOS SSL NECESSARIOS ANTES DO NGINX SUBIR ----------------------------
+# O nginx.conf usa options-ssl-nginx.conf e ssl-dhparams.pem.
+# Esses arquivos precisam existir antes do container nginx iniciar.
+OPTIONS_FILE="./certbot/conf/options-ssl-nginx.conf"
+DHPARAMS_FILE="./certbot/conf/ssl-dhparams.pem"
+
+if [ ! -f "$OPTIONS_FILE" ]; then
+  echo "Baixando options-ssl-nginx.conf..."
+  curl -fsSL https://raw.githubusercontent.com/certbot/certbot/master/certbot-nginx/certbot_nginx/_internal/tls_configs/options-ssl-nginx.conf \
+    -o "$OPTIONS_FILE"
+fi
+
+if [ ! -f "$DHPARAMS_FILE" ]; then
+  echo "Gerando ssl-dhparams.pem (aguarde)..."
+  openssl dhparam -out "$DHPARAMS_FILE" 2048 2>/dev/null
+fi
+
+# --- CERTIFICADO DUMMY --------------------------------------------------------
+# O nginx.conf referencia fullchain.pem e privkey.pem.
+# Precisam existir (mesmo que temporarios) para o nginx validar e subir.
 CERT_DIR="./certbot/conf/live/$DOMAIN"
 
 if [ ! -f "$CERT_DIR/fullchain.pem" ]; then
   echo "Gerando certificado temporario para o nginx conseguir subir..."
-  mkdir -p "$CERT_DIR"
   docker run --rm \
     -v "$(pwd)/certbot/conf:/etc/letsencrypt" \
     --entrypoint openssl \
@@ -70,26 +86,20 @@ if [ ! -f "$CERT_DIR/fullchain.pem" ]; then
   echo "Certificado temporario criado."
 fi
 
-# O nginx.conf usa options-ssl-nginx.conf e ssl-dhparams.pem do certbot.
-# Esses arquivos nao existem ainda, entao fazemos download manual antes de subir.
-OPTIONS_FILE="./certbot/conf/options-ssl-nginx.conf"
-DHPARAMS_FILE="./certbot/conf/ssl-dhparams.pem"
-
-if [ ! -f "$OPTIONS_FILE" ]; then
-  echo "Baixando options-ssl-nginx.conf..."
-  curl -s https://raw.githubusercontent.com/certbot/certbot/master/certbot-nginx/certbot_nginx/_internal/tls_configs/options-ssl-nginx.conf \
-    -o "$OPTIONS_FILE"
-fi
-
-if [ ! -f "$DHPARAMS_FILE" ]; then
-  echo "Gerando ssl-dhparams.pem (pode demorar alguns segundos)..."
-  openssl dhparam -out "$DHPARAMS_FILE" 2048 2>/dev/null
-fi
-
 # --- SUBIR NGINX E STREAMLIT --------------------------------------------------
+# --force-recreate garante que o nginx nao reutilize um container antigo
+# que possa ter subido sem os arquivos ssl acima.
 echo "Subindo containers nginx e streamlit_app..."
-docker compose up -d nginx streamlit_app
-sleep 3
+docker compose up -d --force-recreate nginx streamlit_app
+sleep 5
+
+# Validar que o nginx esta de pe
+if ! docker compose exec nginx nginx -t 2>/dev/null; then
+  echo "Erro: nginx falhou na validacao de configuracao."
+  docker compose logs nginx
+  exit 1
+fi
+echo "Nginx validado e rodando."
 
 # --- SOLICITAR CERTIFICADO REAL -----------------------------------------------
 STAGING_FLAG=""
@@ -99,7 +109,11 @@ if [ "$STAGING" -eq 1 ]; then
 fi
 
 echo "Solicitando certificado Let's Encrypt para $DOMAIN..."
-docker compose run --rm certbot certonly \
+
+# --entrypoint "" sobrescreve o entrypoint de renovacao automatica do container
+# e executa o certonly diretamente
+docker compose run --rm --entrypoint "" certbot \
+  certbot certonly \
   --webroot \
   --webroot-path=/var/www/certbot \
   $STAGING_FLAG \
@@ -108,7 +122,13 @@ docker compose run --rm certbot certonly \
   --no-eff-email \
   -d "$DOMAIN"
 
-# --- RECARREGAR NGINX ---------------------------------------------------------
+if [ $? -ne 0 ]; then
+  echo "Erro: falha ao obter certificado."
+  echo "Verifique se a porta 80 esta acessivel externamente e se o DNS do DuckDNS propagou."
+  exit 1
+fi
+
+# --- RECARREGAR NGINX COM CERTIFICADO REAL ------------------------------------
 echo "Recarregando nginx com o certificado real..."
 docker compose exec nginx nginx -s reload
 
