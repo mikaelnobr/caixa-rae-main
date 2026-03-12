@@ -2,3 +2,4 @@
 __pycache__
 service_account.json
 .venv
+certbot/

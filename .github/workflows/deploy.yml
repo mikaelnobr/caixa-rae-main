@@ -9,6 +9,8 @@ on:
 jobs:
   deploy:
     runs-on: ubuntu-latest
+    env:
+      FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
 
     steps:
       - name: Checkout code
@@ -20,7 +22,6 @@ jobs:
           host: ${{ secrets.ORACLE_VM_HOST }}
           username: ${{ secrets.ORACLE_VM_USERNAME }}
           key: ${{ secrets.ORACLE_VM_SSH_KEY }}
-          port: ${{ secrets.ORACLE_VM_PORT || 22 }}
           source: "."
           target: "~/caixa-rae"
           overwrite: true
@@ -31,10 +32,9 @@ jobs:
           host: ${{ secrets.ORACLE_VM_HOST }}
           username: ${{ secrets.ORACLE_VM_USERNAME }}
           key: ${{ secrets.ORACLE_VM_SSH_KEY }}
-          port: ${{ secrets.ORACLE_VM_PORT || 22 }}
           script: |
             cd ~/caixa-rae
-            
+
             # Ensure the service account file and .env exist before starting
             if [ ! -f "service_account.json" ]; then
               echo "Error: service_account.json not found on the server. Please upload it manually."
@@ -44,10 +44,19 @@ jobs:
               echo "Error: .env not found on the server. Please upload it manually."
               exit 1
             fi
+
+            docker compose build
             
+            # Initialize Let's Encrypt certificates if they don't exist
+            if [ ! -d "./certbot/conf/live/extrator-rae.duckdns.org" ]; then
+              echo "Certificates not found. Running initialization script..."
+              chmod +x ./init-letsencrypt.sh
+              ./init-letsencrypt.sh
+            fi
+
             # Build and restart containers
             docker compose down
-            docker compose up -d --build
-            
+            docker compose up -d
+
             # Prune dangling images to save space
             docker image prune -f
