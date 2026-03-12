@@ -2,20 +2,21 @@ import json
 import time
 from typing import Any, Dict
 
-import google.generativeai as genai
+from google import genai
+from google.genai import types
 
 from src.models.constants import GEMINI_SCHEMA
 
 
 def call_gemini(api_key: str, prompt: str) -> Dict[str, Any]:
     """Chama a API Gemini com retry em caso de rate limit (429)."""
-    genai.configure(api_key=api_key)
-    model = genai.GenerativeModel("gemini-2.5-flash")
+    client = genai.Client(api_key=api_key)
     for d in [2, 4, 8]:
         try:
-            res = model.generate_content(
-                prompt,
-                generation_config=genai.types.GenerationConfig(
+            res = client.models.generate_content(
+                model="gemini-2.5-flash",
+                contents=prompt,
+                config=types.GenerateContentConfig(
                     response_mime_type="application/json",
                     response_schema=GEMINI_SCHEMA,
                     temperature=0.1,
