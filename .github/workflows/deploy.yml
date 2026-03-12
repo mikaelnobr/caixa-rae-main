@@ -1,0 +1,53 @@
+name: Deploy to Oracle VM
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Copy deployment files via SCP
+        uses: appleboy/scp-action@v0.1.7
+        with:
+          host: ${{ secrets.ORACLE_VM_HOST }}
+          username: ${{ secrets.ORACLE_VM_USERNAME }}
+          key: ${{ secrets.ORACLE_VM_SSH_KEY }}
+          port: ${{ secrets.ORACLE_VM_PORT || 22 }}
+          source: "."
+          target: "~/caixa-rae"
+          overwrite: true
+
+      - name: Deploy via SSH
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.ORACLE_VM_HOST }}
+          username: ${{ secrets.ORACLE_VM_USERNAME }}
+          key: ${{ secrets.ORACLE_VM_SSH_KEY }}
+          port: ${{ secrets.ORACLE_VM_PORT || 22 }}
+          script: |
+            cd ~/caixa-rae
+            
+            # Ensure the service account file and .env exist before starting
+            if [ ! -f "service_account.json" ]; then
+              echo "Error: service_account.json not found on the server. Please upload it manually."
+              exit 1
+            fi
+            if [ ! -f ".env" ]; then
+              echo "Error: .env not found on the server. Please upload it manually."
+              exit 1
+            fi
+            
+            # Build and restart containers
+            docker compose down
+            docker compose up -d --build
+            
+            # Prune dangling images to save space
+            docker image prune -f
