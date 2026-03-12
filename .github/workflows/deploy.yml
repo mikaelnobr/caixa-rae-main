@@ -14,7 +14,7 @@ jobs:
 
     steps:
       - name: Checkout code
-        uses: actions/checkout@v6.0.2
+        uses: actions/checkout@v4
 
       - name: Copy deployment files via SCP
         uses: appleboy/scp-action@v0.1.7
@@ -35,18 +35,17 @@ jobs:
           script: |
             cd ~/caixa-rae
 
-            docker compose build
-
-            # Initialize Let's Encrypt certificates if they don't exist
+            # Inicializar certificados HTTPS na primeira execucao
             if [ ! -d "./certbot/conf/live/extrator-rae.duckdns.org" ]; then
-              echo "Certificates not found. Running initialization script..."
-              chmod +x ./init-letsencrypt.sh
-              ./init-letsencrypt.sh
+              echo "Certificados nao encontrados. Executando inicializacao..."
+              chmod +x ./init-letsencrypt-duckdns.sh
+              ./init-letsencrypt-duckdns.sh
             fi
 
-            # Build and restart containers
-            docker compose down
-            docker compose up -d
+            # Rebuild e restart dos containers
+            docker compose build
+            docker compose down --remove-orphans
+            docker compose up -d --force-recreate
 
-            # Prune dangling images to save space
+            # Remover imagens sem uso
             docker image prune -f
