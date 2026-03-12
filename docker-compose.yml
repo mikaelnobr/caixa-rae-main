@@ -29,8 +29,6 @@ services:
     image: certbot/certbot
     container_name: caixa_rae_certbot
     restart: unless-stopped
-    environment:
-      - DUCKDNS_TOKEN=${DUCKDNS_TOKEN}
     volumes:
       - ./certbot/conf:/etc/letsencrypt
       - ./certbot/www:/var/www/certbot

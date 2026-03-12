@@ -1,110 +1,115 @@
 #!/bin/bash
-# Configuration
-domains=(extrator-rae.duckdns.org)
-rsa_key_size=4096
-data_path="./certbot"
-staging=0 # Set to 1 if you're testing your setup to avoid hitting request limits
 
-# Load .env
-if [ -f ".env" ]; then
-  export $(grep -v '^#' .env | xargs)
-fi
+# =============================================================================
+# Script de inicializacao do certificado HTTPS com DuckDNS + Let's Encrypt
+# Variaveis lidas do arquivo .env
+#
+# Variaveis esperadas no .env:
+#   DUCKDNS_TOKEN=seu-token
+#   CERTBOT_EMAIL=seu@email.com
+#   STAGING=0        (opcional, padrao 0; use 1 para testar sem consumir cota)
+# =============================================================================
 
-# Validate required env vars
-if [ -z "$CERTBOT_EMAIL" ]; then
-  echo "ERROR: CERTBOT_EMAIL is not set in .env"
-  exit 1
-fi
-
-if [ -z "$DUCKDNS_TOKEN" ]; then
-  echo "ERROR: DUCKDNS_TOKEN is not set in .env"
-  exit 1
-fi
-
-# Enable exit on error
 set -e
 
-# Check DNS resolution before proceeding
-echo "### Checking DNS resolution for ${domains[0]} ..."
-MAX_RETRIES=10
-RETRY_INTERVAL=15
-for i in $(seq 1 $MAX_RETRIES); do
-  RESOLVED_IP=$(getent hosts "${domains[0]}" | awk '{ print $1 }' || true)
-  if [ -n "$RESOLVED_IP" ]; then
-    echo "DNS resolved: ${domains[0]} -> $RESOLVED_IP"
-    break
-  fi
-  echo "DNS not resolved yet. Attempt $i/$MAX_RETRIES. Retrying in ${RETRY_INTERVAL}s..."
-  sleep $RETRY_INTERVAL
-  if [ $i -eq $MAX_RETRIES ]; then
-    echo "ERROR: Could not resolve ${domains[0]} after $MAX_RETRIES attempts."
-    echo "Please check your DuckDNS configuration and try again."
-    exit 1
-  fi
-done
-echo
+DOMAIN="extrator-rae.duckdns.org"
+SUBDOMAIN="extrator-rae"
 
-if [ -d "$data_path" ]; then
-  read -p "Existing data found for $domains. Continue and replace existing certificate? (y/N) " decision
-  if [ "$decision" != "Y" ] && [ "$decision" != "y" ]; then
-    exit
-  fi
+# --- CARREGAR .env ------------------------------------------------------------
+if [ ! -f ".env" ]; then
+  echo "Erro: arquivo .env nao encontrado. Execute na raiz do projeto."
+  exit 1
 fi
 
-if [ ! -e "$data_path/conf/options-ssl-nginx.conf" ] || [ ! -e "$data_path/conf/ssl-dhparams.pem" ]; then
-  echo "### Downloading recommended TLS parameters ..."
-  mkdir -p "$data_path/conf"
-  curl -s https://raw.githubusercontent.com/certbot/certbot/master/certbot-nginx/certbot_nginx/_internal/tls_configs/options-ssl-nginx.conf > "$data_path/conf/options-ssl-nginx.conf"
-  curl -s https://raw.githubusercontent.com/certbot/certbot/master/certbot/certbot/ssl-dhparams.pem > "$data_path/conf/ssl-dhparams.pem"
-  echo
+set -a
+source .env
+set +a
+
+# --- VALIDACAO ----------------------------------------------------------------
+if [[ -z "$DUCKDNS_TOKEN" ]]; then
+  echo "Erro: variavel DUCKDNS_TOKEN nao definida no .env"
+  exit 1
 fi
 
-echo "### Creating dummy certificate for ${domains[0]} ..."
-path="/etc/letsencrypt/live/${domains[0]}"
-mkdir -p "$data_path/conf/live/${domains[0]}"
-docker compose run --rm --entrypoint "\
-  openssl req -x509 -nodes -newkey rsa:$rsa_key_size -days 1\
-    -keyout '$path/privkey.pem' \
-    -out '$path/fullchain.pem' \
-    -subj '/CN=localhost'" certbot
-echo
+if [[ -z "$CERTBOT_EMAIL" ]]; then
+  echo "Erro: variavel CERTBOT_EMAIL nao definida no .env"
+  exit 1
+fi
 
-echo "### Starting nginx ..."
-docker compose up --force-recreate -d nginx
-echo
+STAGING="${STAGING:-0}"
 
-echo "### Deleting dummy certificate for ${domains[0]} ..."
-docker compose run --rm --entrypoint "\
-  rm -Rf /etc/letsencrypt/live/${domains[0]} && \
-  rm -Rf /etc/letsencrypt/archive/${domains[0]} && \
-  rm -Rf /etc/letsencrypt/renewal/${domains[0]}.conf" certbot
-echo
+# --- ATUALIZAR IP NO DUCKDNS --------------------------------------------------
+echo "Atualizando IP no DuckDNS para o subdominio: $SUBDOMAIN"
 
-echo "### Requesting Let's Encrypt certificate for ${domains[0]} ..."
-# Join $domains to -d args
-domain_args=""
-for domain in "${domains[@]}"; do
-  domain_args="$domain_args -d $domain"
-done
+RESPONSE=$(curl -s "https://www.duckdns.org/update?domains=${SUBDOMAIN}&token=${DUCKDNS_TOKEN}&ip=")
+if [[ "$RESPONSE" != "OK" ]]; then
+  echo "Falha ao atualizar DuckDNS. Resposta: $RESPONSE"
+  exit 1
+fi
+echo "IP atualizado no DuckDNS."
 
-# Enable staging mode if needed
-if [ $staging != "0" ]; then staging_arg="--staging"; fi
+# --- CRIAR DIRETORIOS ---------------------------------------------------------
+mkdir -p ./certbot/conf ./certbot/www
 
-docker compose run --rm \
-  -e DUCKDNS_TOKEN=$DUCKDNS_TOKEN \
-  --entrypoint "\
-  certbot certonly \
-    --authenticator dns-duckdns \
-    --dns-duckdns-token \$DUCKDNS_TOKEN \
-    --dns-duckdns-propagation-seconds 60 \
-    $staging_arg \
-    --email $CERTBOT_EMAIL \
-    $domain_args \
-    --rsa-key-size $rsa_key_size \
-    --agree-tos \
-    --force-renewal" certbot
-echo
+# --- CERTIFICADO DUMMY (para o nginx subir antes do certbot) ------------------
+# O nginx.conf referencia os arquivos de certificado, entao eles precisam
+# existir antes do container subir, mesmo que sejam temporarios.
+CERT_DIR="./certbot/conf/live/$DOMAIN"
 
-echo "### Reloading nginx ..."
+if [ ! -f "$CERT_DIR/fullchain.pem" ]; then
+  echo "Gerando certificado temporario para o nginx conseguir subir..."
+  mkdir -p "$CERT_DIR"
+  docker run --rm \
+    -v "$(pwd)/certbot/conf:/etc/letsencrypt" \
+    --entrypoint openssl \
+    certbot/certbot \
+    req -x509 -nodes -newkey rsa:2048 -days 1 \
+    -keyout "/etc/letsencrypt/live/$DOMAIN/privkey.pem" \
+    -out "/etc/letsencrypt/live/$DOMAIN/fullchain.pem" \
+    -subj "/CN=$DOMAIN" 2>/dev/null
+  echo "Certificado temporario criado."
+fi
+
+# O nginx.conf usa options-ssl-nginx.conf e ssl-dhparams.pem do certbot.
+# Esses arquivos nao existem ainda, entao fazemos download manual antes de subir.
+OPTIONS_FILE="./certbot/conf/options-ssl-nginx.conf"
+DHPARAMS_FILE="./certbot/conf/ssl-dhparams.pem"
+
+if [ ! -f "$OPTIONS_FILE" ]; then
+  echo "Baixando options-ssl-nginx.conf..."
+  curl -s https://raw.githubusercontent.com/certbot/certbot/master/certbot-nginx/certbot_nginx/_internal/tls_configs/options-ssl-nginx.conf \
+    -o "$OPTIONS_FILE"
+fi
+
+if [ ! -f "$DHPARAMS_FILE" ]; then
+  echo "Gerando ssl-dhparams.pem (pode demorar alguns segundos)..."
+  openssl dhparam -out "$DHPARAMS_FILE" 2048 2>/dev/null
+fi
+
+# --- SUBIR NGINX E STREAMLIT --------------------------------------------------
+echo "Subindo containers nginx e streamlit_app..."
+docker compose up -d nginx streamlit_app
+sleep 3
+
+# --- SOLICITAR CERTIFICADO REAL -----------------------------------------------
+STAGING_FLAG=""
+if [ "$STAGING" -eq 1 ]; then
+  STAGING_FLAG="--staging"
+  echo "Aviso: modo staging ativado. O certificado nao sera confiavel, mas nao consome cota."
+fi
+
+echo "Solicitando certificado Let's Encrypt para $DOMAIN..."
+docker compose run --rm certbot certonly \
+  --webroot \
+  --webroot-path=/var/www/certbot \
+  $STAGING_FLAG \
+  --email "$CERTBOT_EMAIL" \
+  --agree-tos \
+  --no-eff-email \
+  -d "$DOMAIN"
+
+# --- RECARREGAR NGINX ---------------------------------------------------------
+echo "Recarregando nginx com o certificado real..."
 docker compose exec nginx nginx -s reload
-echo "### Certificate successfully retrieved and applied!"
+
+echo "Configuracao concluida. Acesse: https://$DOMAIN"
