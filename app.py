@@ -13,9 +13,10 @@ st.set_page_config(page_title="Extrator de Laudos", page_icon="🏛️", layout=
 
 
 def main() -> None:
-    from src.views.main_view import render
+    from src.views.main_view import MainView
 
-    render()
+    view = MainView()
+    view.render()
 
 
 if __name__ == "__main__":
