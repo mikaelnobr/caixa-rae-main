@@ -9,7 +9,9 @@ from src.models.constants import PROFISSIONAIS
 
 
 def render() -> None:
-    """Renderiza a interface principal da aplicação."""
+    """
+    Renderiza a interface principal da aplicação.
+    """
     st.title("🏛️ Automação RAE CAIXA")
 
     if "processed" not in st.session_state:

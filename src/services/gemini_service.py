@@ -28,4 +28,5 @@ def call_gemini(api_key: str, prompt: str) -> Dict[str, Any]:
                 time.sleep(d)
                 continue
             raise e
-    raise RuntimeError("Gemini API: número máximo de tentativas atingido.")
+    else:
+        raise RuntimeError("Gemini API: número máximo de tentativas atingido.")

@@ -13,10 +13,10 @@ st.set_page_config(page_title="Automação RAE CAIXA", page_icon="🏛️", layo
 
 # --- VERIFICAÇÃO DE DEPENDÊNCIAS ---
 try:
-    import pdfplumber  # noqa: F401
-    import google.genai  # noqa: F401
-    import gspread  # noqa: F401
-    from google.oauth2.service_account import Credentials  # noqa: F401
+    import pdfplumber
+    import google.genai
+    import gspread
+    from google.oauth2.service_account import Credentials
 
     DEPENDENCIAS_OK = True
 except ImportError as e:

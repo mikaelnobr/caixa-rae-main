@@ -110,12 +110,12 @@ fi
 
 echo "Solicitando certificado Let's Encrypt para $DOMAIN..."
 
-# --entrypoint "" sobrescreve o entrypoint de renovacao automatica do container
-# e executa o certonly diretamente
 docker compose run --rm --entrypoint "" certbot \
   certbot certonly \
   --webroot \
   --webroot-path=/var/www/certbot \
+  --non-interactive \
+  --force-renewal \
   $STAGING_FLAG \
   --email "$CERTBOT_EMAIL" \
   --agree-tos \
