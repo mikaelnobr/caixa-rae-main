@@ -8,50 +8,57 @@ from src.controllers.document_controller import process_single_pdf, sync_to_shee
 from src.models.constants import PROFISSIONAIS
 
 
-def render() -> None:
+def render_sidebar() -> tuple[str, str]:
     """
-    Renderiza a interface principal da aplicação.
+    Renderiza a barra lateral de configurações.
     """
-    st.title("🏛️ Extrator de Laudo")
-
-    if "processed" not in st.session_state:
-        st.session_state["processed"] = False
-
-    # --- SIDEBAR ---
     with st.sidebar:
         st.header("⚙️ Configurações")
         api_key = st.text_input("Gemini API Key:", type="password")
-        resp_selecionado = st.selectbox(
+        
+        resp_selecionado_raw = st.selectbox(
             "Responsável Técnico:", options=list(PROFISSIONAIS.keys())
         )
-        if st.session_state["processed"]:
+        resp_selecionado = str(resp_selecionado_raw) if resp_selecionado_raw else ""
+        
+        if st.session_state.get("processed", False):
             if st.button("🔄 NOVA FILA"):
                 st.session_state["processed"] = False
                 st.rerun()
 
-    # --- RESULTADOS ANTERIORES ---
-    if st.session_state["processed"]:
-        st.success("✅ Processamento Concluído!")
-        if "batch_results" in st.session_state:
-            res = st.session_state["batch_results"]
-            st.info(
-                f"📊 **{res['ok']}** laudos processados com sucesso, "
-                f"**{res['fail']}** falharam de **{res['total']}** total."
-            )
-            if res.get("zip_bytes"):
-                st.download_button(
-                    "📥 BAIXAR TODOS OS LAUDOS PROCESSADOS (.zip)",
-                    res["zip_bytes"],
-                    "LAUDOS_processados.zip",
-                    "application/zip",
-                )
-            if res.get("erros"):
-                with st.expander("⚠️ Laudos com Erro"):
-                    for err in res["erros"]:
-                        st.warning(err)
-        return
+    return api_key, resp_selecionado
 
-    # --- UPLOAD E PROCESSAMENTO ---
+
+def render_previous_results() -> None:
+    """
+    Renderiza na tela os resultados do processamento anterior, se houver.
+    Permite o download do zip e visualização de erros.
+    """
+    st.success("✅ Processamento Concluído!")
+    if "batch_results" in st.session_state:
+        res = st.session_state["batch_results"]
+        st.info(
+            f"📊 **{res['ok']}** laudos processados com sucesso, "
+            f"**{res['fail']}** falharam de **{res['total']}** total."
+        )
+        if res.get("zip_bytes"):
+            st.download_button(
+                "📥 BAIXAR TODOS OS LAUDOS PROCESSADOS (.zip)",
+                res["zip_bytes"],
+                "LAUDOS_processados.zip",
+                "application/zip",
+            )
+        if res.get("erros"):
+            with st.expander("⚠️ Laudos com Erro"):
+                for err in res["erros"]:
+                    st.warning(err)
+
+
+def render_upload_and_processing(api_key: str, resp_selecionado: str) -> None:
+    """
+    Renderiza a área de upload de PDFs, gerencia o fluxo de processamento e 
+    atualiza o progresso na tela iterando sobre a lista de arquivos.
+    """
     pdf_files = st.file_uploader(
         "📄 Laudos Técnicos (PDFs)", type=["pdf"], accept_multiple_files=True
     )
@@ -141,3 +148,21 @@ def render() -> None:
         st.session_state["processed"] = True
         gc.collect()
         st.rerun()
+
+
+def render() -> None:
+    """
+    Renderiza a interface principal da aplicação.
+    """
+    st.title("🏛️ Extrator de Laudo")
+
+    if "processed" not in st.session_state:
+        st.session_state["processed"] = False
+
+    api_key, resp_selecionado = render_sidebar()
+
+    if st.session_state["processed"]:
+        render_previous_results()
+        return
+
+    render_upload_and_processing(api_key, resp_selecionado)
