@@ -12,7 +12,7 @@ def render() -> None:
     """
     Renderiza a interface principal da aplicação.
     """
-    st.title("🏛️ Automação RAE CAIXA")
+    st.title("🏛️ Extrator de Laudo")
 
     if "processed" not in st.session_state:
         st.session_state["processed"] = False
@@ -40,9 +40,9 @@ def render() -> None:
             )
             if res.get("zip_bytes"):
                 st.download_button(
-                    "📥 BAIXAR TODOS OS RAEs (.zip)",
+                    "📥 BAIXAR TODOS OS LAUDOS PROCESSADOS (.zip)",
                     res["zip_bytes"],
-                    "RAEs_processados.zip",
+                    "LAUDOS_processados.zip",
                     "application/zip",
                 )
             if res.get("erros"):
@@ -55,7 +55,9 @@ def render() -> None:
     pdf_files = st.file_uploader(
         "📄 Laudos Técnicos (PDFs)", type=["pdf"], accept_multiple_files=True
     )
-    gerar_excel = st.checkbox("📊 Gerar arquivo DADOS_IA para RAE", value=True)
+    gerar_excel = st.checkbox(
+        "📊 Gerar arquivo DADOS_IA para preencher a RAE?", value=True
+    )
 
     if pdf_files:
         st.caption(f"📁 {len(pdf_files)} laudo(s) selecionado(s)")
@@ -117,7 +119,7 @@ def render() -> None:
             gc.collect()
 
         progress_bar.progress(
-            1.0, text=f"✅ Concluído! {ok_count}/{total} laudos processados."
+            1.0, text=f"✅ Concluído! {ok_count}/{total} laudos processados e salvos no Google Sheets."
         )
 
         # Empacotar todos os Excel em ZIP
