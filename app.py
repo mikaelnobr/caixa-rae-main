@@ -9,7 +9,9 @@ except ImportError:
     pass
 
 # --- CONFIGURAÇÃO INICIAL ---
-st.set_page_config(page_title="Automação RAE CAIXA", page_icon="🏛️", layout="centered")
+st.set_page_config(
+    page_title="Extrator de Laudos", page_icon="🏛️", layout="centered"
+)
 
 # --- VERIFICAÇÃO DE DEPENDÊNCIAS ---
 try:
