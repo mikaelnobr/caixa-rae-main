@@ -88,8 +88,8 @@ class MainView:
                 st.warning("Preencha a API Key e selecione ao menos 1 PDF.")
                 return
 
-            if len(pdf_files) > 10:
-                st.warning("⚠️ Limite máximo de 10 laudos por lote excedido. Por favor, divida o lote e tente novamente.")
+            if len(pdf_files) > 20:
+                st.warning("⚠️ Limite máximo de 20 laudos por lote excedido. Por favor, divida o lote e tente novamente.")
                 return
             
             total_size_bytes = sum(pdf.size for pdf in pdf_files)
@@ -98,8 +98,8 @@ class MainView:
                 return
 
             total = len(pdf_files)
-            progress_bar = st.progress(
-                0, text=f"Iniciando processamento de {total} laudo(s)..."
+            status_container = st.status(
+                f"🚀 Processando {total} laudo(s)...", expanded=True
             )
             resultados_excel = []
             erros = []
@@ -107,56 +107,52 @@ class MainView:
 
             doc_controller = DocumentController(api_key=self.api_key)
 
-            for idx, pdf in enumerate(pdf_files):
-                progress_bar.progress(
-                    (idx) / total,
-                    text=f"📄 Processando {idx + 1}/{total}: {pdf.name}",
+            try:
+                # Chamada batch: extrai todos os textos e faz 1 chamada Gemini
+                batch_results = doc_controller.process_batch(
+                    pdf_files,
+                    self.resp_selecionado,
+                    on_status=lambda msg: status_container.write(msg),
                 )
-                status_container = st.status(
-                    f"[{idx + 1}/{total}] {pdf.name}",
-                    expanded=(idx == len(pdf_files) - 1),
-                )
-                try:
-                    dados, excel_bytes, nome_proponente = (
-                        doc_controller.process_single_pdf(
-                            pdf,
-                            self.resp_selecionado,
-                            on_status=lambda msg: status_container.write(msg),
-                        )
+
+                # Processar resultados individuais (sync Sheets + coleta Excel)
+                for idx, (dados, excel_bytes, nome_proponente) in enumerate(
+                    batch_results
+                ):
+                    pdf = pdf_files[idx]
+                    status_container.write(
+                        f"☁️ Sincronizando **{pdf.name}** com Google Sheets..."
                     )
 
                     sheets_ok, sheets_msg = doc_controller.sync_to_sheets(
                         dados, self.resp_selecionado
                     )
                     if not sheets_ok:
-                        status_container.write(f"⚠️ Google Sheets: {sheets_msg}")
+                        status_container.write(
+                            f"⚠️ Google Sheets ({pdf.name}): {sheets_msg}"
+                        )
                     else:
-                        status_container.write(f"✅ {sheets_msg}")
+                        status_container.write(f"✅ {pdf.name}: {sheets_msg}")
 
                     if gerar_excel:
                         resultados_excel.append(
                             (f"RAE_{nome_proponente}.xlsx", excel_bytes)
                         )
-
-                    status_container.update(
-                        label=f"✅ [{idx + 1}/{total}] {pdf.name}",
-                        state="complete",
-                    )
                     ok_count += 1
 
-                except Exception as e:
-                    erros.append(f"❌ {pdf.name}: {e}")
-                    status_container.update(
-                        label=f"❌ [{idx + 1}/{total}] {pdf.name}",
-                        state="error",
-                    )
+                status_container.update(
+                    label=f"✅ {ok_count}/{total} laudos processados com sucesso!",
+                    state="complete",
+                )
 
-                gc.collect()
+            except Exception as e:
+                erros.append(f"❌ Erro no processamento em lote: {e}")
+                status_container.update(
+                    label="❌ Erro no processamento",
+                    state="error",
+                )
 
-            progress_bar.progress(
-                1.0,
-                text=f"✅ Concluído! {ok_count}/{total} laudos processados e salvos no Google Sheets.",
-            )
+            gc.collect()
 
             # Empacotar em ZIP Somente se for mais de uma planilha
             download_bytes = None
@@ -187,6 +183,7 @@ class MainView:
             st.session_state["processed"] = True
             gc.collect()
             st.rerun()
+
 
     def render(self) -> None:
         """
