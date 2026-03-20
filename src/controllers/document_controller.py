@@ -34,7 +34,7 @@ class DocumentController:
             on_status: Callback para reportar progresso (recebe uma string de mensagem).
 
         Returns:
-            Tupla (dados_extraidos, excel_bytes, primeiro_nome).
+            Tupla (dados_extraidos, excel_bytes, nome_proponente).
         """
         with tempfile.NamedTemporaryFile(delete=False, suffix=".pdf") as tmp:
             pdf_file.seek(0)
@@ -59,9 +59,9 @@ class DocumentController:
         dados = self.gemini_service.generate_content(prompt)
 
         excel_service = ExcelService(dados, resp_selecionado)
-        excel_bytes, primeiro_nome = excel_service.generate()
+        excel_bytes, nome_proponente = excel_service.generate()
 
-        return dados, excel_bytes, primeiro_nome
+        return dados, excel_bytes, nome_proponente
 
     def sync_to_sheets(
         self, dados: Dict[str, Any], resp_selecionado: str

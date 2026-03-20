@@ -105,5 +105,11 @@ class ExcelService:
         self.wb.save(out)
 
         proponente_str = str(self.dados.get("proponente", "")).strip()
-        primeiro_nome = proponente_str.split()[0].upper() if proponente_str else "LAUDO"
-        return out.getvalue(), primeiro_nome
+        nomes = proponente_str.split()
+        if len(nomes) >= 2:
+            nome_proponente = f"{nomes[0]}_{nomes[-1]}".upper()
+        elif len(nomes) == 1:
+            nome_proponente = nomes[0].upper()
+        else:
+            nome_proponente = "LAUDO"
+        return out.getvalue(), nome_proponente

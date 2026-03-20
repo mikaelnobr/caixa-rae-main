@@ -117,7 +117,7 @@ class MainView:
                     expanded=(idx == len(pdf_files) - 1),
                 )
                 try:
-                    dados, excel_bytes, primeiro_nome = (
+                    dados, excel_bytes, nome_proponente = (
                         doc_controller.process_single_pdf(
                             pdf,
                             self.resp_selecionado,
@@ -135,7 +135,7 @@ class MainView:
 
                     if gerar_excel:
                         resultados_excel.append(
-                            (f"RAE_{primeiro_nome}.xlsx", excel_bytes)
+                            (f"RAE_{nome_proponente}.xlsx", excel_bytes)
                         )
 
                     status_container.update(
