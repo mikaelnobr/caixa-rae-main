@@ -125,3 +125,10 @@ class UtilsService:
             return str(round(decimal, 8)).replace(",", ".")
         except Exception:
             return "0.0"
+
+    @staticmethod
+    def get_now_timestamp() -> str:
+        """
+        Retorna o timestamp atual no formato DDMMYYYYHHMMSS
+        """
+        return datetime.now().strftime("%d%m%Y%H%M%S")

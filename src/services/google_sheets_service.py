@@ -12,6 +12,7 @@ class GoogleSheetsService:
     """
     Serviço para sincronização de dados com o Google Sheets.
     """
+
     def __init__(self):
         self.scopes = [
             "https://www.googleapis.com/auth/spreadsheets",
@@ -32,7 +33,7 @@ class GoogleSheetsService:
                 )
             except Exception:
                 pass
-        
+
         json_str = UtilsService.get_secret("GCP_SERVICE_ACCOUNT")
         if json_str:
             try:
@@ -49,7 +50,9 @@ class GoogleSheetsService:
 
     def _prepare_row_data(self, dados_ia: Dict[str, Any], resp_nome: str) -> list:
         tel = f"({dados_ia.get('ddd', '')}) {dados_ia.get('telefone', '')}"
-        val_data_evento = UtilsService.calcular_serial_data(dados_ia.get("data_referencia", ""))
+        val_data_evento = UtilsService.calcular_serial_data(
+            dados_ia.get("data_referencia", "")
+        )
 
         v_terreno = UtilsService.to_f(dados_ia.get("valor_terreno", 0))
         a_terreno = UtilsService.to_f(dados_ia.get("area_terreno", 0))
@@ -58,6 +61,7 @@ class GoogleSheetsService:
         endereco_literal = str(dados_ia.get("endereco_literal", "")).upper()
 
         return [
+            UtilsService.get_now_timestamp(),
             str(dados_ia.get("empresa_responsavel", "")).upper(),
             str(resp_nome).upper(),
             str(dados_ia.get("proponente", "")).upper(),
