@@ -48,7 +48,7 @@ class UtilsService:
     @staticmethod
     def calcular_serial_data(data_str: Optional[str]) -> int:
         """
-        Calcula o serial da data conforme regra: (Ano - 2024) * 12 + Mês + 288.
+        Calcula o serial da data conforme regra: (Ano - 2000) * 12 + mês
         """
         try:
             if not data_str or "/" not in data_str:
@@ -56,10 +56,10 @@ class UtilsService:
             else:
                 dt = datetime.strptime(data_str.strip(), "%d/%m/%Y")
 
-            return (dt.year - 2024) * 12 + dt.month + 288
+            return (dt.year - 2000) * 12 + dt.month
         except Exception:
             dt = datetime.now()
-            return (dt.year - 2024) * 12 + dt.month + 288
+            return (dt.year - 2000) * 12 + dt.month
 
     @staticmethod
     def safe_write(ws: Any, coord: str, val: Any) -> None:
