@@ -37,7 +37,12 @@ class DocumentController:
             Tupla (dados_extraidos, excel_bytes, primeiro_nome).
         """
         with tempfile.NamedTemporaryFile(delete=False, suffix=".pdf") as tmp:
-            tmp.write(pdf_file.getbuffer())
+            pdf_file.seek(0)
+            while True:
+                chunk = pdf_file.read(64*1024)  # 64KB chunks
+                if not chunk:
+                    break
+                tmp.write(chunk)
             tp = tmp.name
 
         try:
