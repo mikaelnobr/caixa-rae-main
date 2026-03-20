@@ -148,6 +148,7 @@ GEMINI_PROMPT_TEMPLATE = """
        - É OBRIGATÓRIO incluir o valor do "Pré-executado" mesmo que seja 0.00.
        - NÃO pule a etapa 0. Se ela for 0%, retorne 0.0 como primeiro item da lista.
        - Em seguida, extraia os valores da coluna "% Acumulado" para as parcelas 1, 2, 3...
+       - O número de etapas deve seguir o 'Número de Parcelas Previstas'.
 
     REGRAS DE EXTRAÇÃO DO CRONOGRAMA (INCIDÊNCIAS):
 
