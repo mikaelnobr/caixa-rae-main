@@ -89,17 +89,21 @@ class MainView:
                 return
 
             if len(pdf_files) > 20:
-                st.warning("⚠️ Limite máximo de 20 laudos por lote excedido. Por favor, divida o lote e tente novamente.")
+                st.warning(
+                    "⚠️ Limite máximo de 20 laudos por lote excedido. Por favor, divida o lote e tente novamente."
+                )
                 return
-            
+
             total_size_bytes = sum(pdf.size for pdf in pdf_files)
             if total_size_bytes > 100 * 1024 * 1024:
-                st.warning(f"⚠️ O tamanho total dos arquivos ({total_size_bytes / (1024*1024):.1f} MB) excede o limite de 100 MB. Por favor, divida o lote.")
+                st.warning(
+                    f"⚠️ O tamanho total dos arquivos ({total_size_bytes / (1024 * 1024):.1f} MB) excede o limite de 100 MB. Por favor, divida o lote."
+                )
                 return
 
             total = len(pdf_files)
-            status_container = st.status(
-                f"🚀 Processando {total} laudo(s)...", expanded=True
+            progress_bar = st.progress(
+                0, text=f"Iniciando processamento de {total} laudo(s)..."
             )
             resultados_excel = []
             erros = []
@@ -108,42 +112,55 @@ class MainView:
             doc_controller = DocumentController(api_key=self.api_key)
 
             for idx, pdf in enumerate(pdf_files):
+                progress_bar.progress(
+                    (idx) / total,
+                    text=f"📄 Processando {idx + 1}/{total}: {pdf.name}",
+                )
+                status_container = st.status(
+                    f"[{idx + 1}/{total}] {pdf.name}",
+                    expanded=(idx == len(pdf_files) - 1),
+                )
                 try:
-                    dados, excel_bytes, nome_proponente = doc_controller.process_single_pdf(
-                        pdf,
-                        self.resp_selecionado,
-                        on_status=lambda msg: status_container.write(msg),
+                    dados, excel_bytes, nome_proponente = (
+                        doc_controller.process_single_pdf(
+                            pdf,
+                            self.resp_selecionado,
+                            on_status=lambda msg: status_container.write(msg),
+                        )
                     )
 
-                    status_container.write(
-                        f"☁️ Sincronizando **{pdf.name}** com Google Sheets..."
-                    )
                     sheets_ok, sheets_msg = doc_controller.sync_to_sheets(
                         dados, self.resp_selecionado
                     )
                     if not sheets_ok:
-                        status_container.write(
-                            f"⚠️ Google Sheets ({pdf.name}): {sheets_msg}"
-                        )
+                        status_container.write(f"⚠️ Google Sheets: {sheets_msg}")
                     else:
-                        status_container.write(f"✅ {pdf.name}: {sheets_msg}")
+                        status_container.write(f"✅ {sheets_msg}")
 
                     if gerar_excel:
                         resultados_excel.append(
                             (f"RAE_{nome_proponente}.xlsx", excel_bytes)
                         )
+
+                    status_container.update(
+                        label=f"✅ [{idx + 1}/{total}] {pdf.name}",
+                        state="complete",
+                    )
                     ok_count += 1
 
                 except Exception as e:
                     erros.append(f"❌ {pdf.name}: {e}")
-                    status_container.write(f"❌ Erro em **{pdf.name}**: {e}")
+                    status_container.update(
+                        label=f"❌ [{idx + 1}/{total}] {pdf.name}",
+                        state="error",
+                    )
 
-            status_container.update(
-                label=f"✅ {ok_count}/{total} laudos processados com sucesso!",
-                state="complete" if ok_count > 0 else "error",
+                gc.collect()
+
+            progress_bar.progress(
+                1.0,
+                text=f"✅ Concluído! {ok_count}/{total} laudos processados e salvos no Google Sheets.",
             )
-
-            gc.collect()
 
             # Empacotar em ZIP Somente se for mais de uma planilha
             download_bytes = None
@@ -160,7 +177,9 @@ class MainView:
                 download_mime = "application/zip"
             elif len(resultados_excel) == 1:
                 download_name, download_bytes = resultados_excel[0]
-                download_mime = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+                download_mime = (
+                    "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+                )
 
             st.session_state["batch_results"] = {
                 "ok": ok_count,
@@ -174,7 +193,6 @@ class MainView:
             st.session_state["processed"] = True
             gc.collect()
             st.rerun()
-
 
     def render(self) -> None:
         """
