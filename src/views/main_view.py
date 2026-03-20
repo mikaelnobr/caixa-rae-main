@@ -51,12 +51,17 @@ class MainView:
                 f"📊 **{res['ok']}** laudos processados com sucesso, "
                 f"**{res['fail']}** falharam de **{res['total']}** total."
             )
-            if res.get("zip_bytes"):
+            if res.get("download_bytes"):
+                label = (
+                    "📥 BAIXAR PLANILHA (.xlsx)"
+                    if res["download_mime"] != "application/zip"
+                    else "📥 BAIXAR TODOS OS LAUDOS PROCESSADOS (.zip)"
+                )
                 st.download_button(
-                    "📥 BAIXAR TODOS OS LAUDOS PROCESSADOS (.zip)",
-                    res["zip_bytes"],
-                    "LAUDOS_processados.zip",
-                    "application/zip",
+                    label,
+                    res["download_bytes"],
+                    res["download_name"],
+                    res["download_mime"],
                 )
             if res.get("erros"):
                 with st.expander("⚠️ Laudos com Erro"):
@@ -81,6 +86,15 @@ class MainView:
         if st.button("🚀 INICIAR PROCESSAMENTO"):
             if not self.api_key or not pdf_files:
                 st.warning("Preencha a API Key e selecione ao menos 1 PDF.")
+                return
+
+            if len(pdf_files) > 10:
+                st.warning("⚠️ Limite máximo de 10 laudos por lote excedido. Por favor, divida o lote e tente novamente.")
+                return
+            
+            total_size_bytes = sum(pdf.size for pdf in pdf_files)
+            if total_size_bytes > 100 * 1024 * 1024:
+                st.warning(f"⚠️ O tamanho total dos arquivos ({total_size_bytes / (1024*1024):.1f} MB) excede o limite de 100 MB. Por favor, divida o lote.")
                 return
 
             total = len(pdf_files)
@@ -144,20 +158,30 @@ class MainView:
                 text=f"✅ Concluído! {ok_count}/{total} laudos processados e salvos no Google Sheets.",
             )
 
-            # Empacotar todos os Excel em ZIP
-            zip_bytes = None
-            if resultados_excel:
+            # Empacotar em ZIP Somente se for mais de uma planilha
+            download_bytes = None
+            download_name = ""
+            download_mime = ""
+
+            if len(resultados_excel) > 1:
                 zip_buffer = BytesIO()
                 with zipfile.ZipFile(zip_buffer, "w", zipfile.ZIP_DEFLATED) as zf:
                     for nome, dados_xl in resultados_excel:
                         zf.writestr(nome, dados_xl)
-                zip_bytes = zip_buffer.getvalue()
+                download_bytes = zip_buffer.getvalue()
+                download_name = "LAUDOS_processados.zip"
+                download_mime = "application/zip"
+            elif len(resultados_excel) == 1:
+                download_name, download_bytes = resultados_excel[0]
+                download_mime = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
 
             st.session_state["batch_results"] = {
                 "ok": ok_count,
                 "fail": len(erros),
                 "total": total,
-                "zip_bytes": zip_bytes,
+                "download_bytes": download_bytes,
+                "download_name": download_name,
+                "download_mime": download_mime,
                 "erros": erros,
             }
             st.session_state["processed"] = True
