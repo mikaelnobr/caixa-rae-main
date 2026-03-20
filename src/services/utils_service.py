@@ -10,7 +10,7 @@ class UtilsService:
     """
     Serviço com métodos utilitários gerais.
     """
-    
+
     @staticmethod
     def get_secret(key: str) -> Optional[str]:
         """
@@ -83,3 +83,45 @@ class UtilsService:
             ws[coord].value = val
         except Exception:
             pass
+
+    @staticmethod
+    def dmstodecimal(coord_str: Any) -> str:
+        """
+        Converte formato DMS (Graus, Minutos, Segundos) para Decimal.
+        Ex: 23º32'51,234" -> "-23.547565"
+        """
+        if not coord_str:
+            return "0.0"
+
+        s_coord = str(coord_str).strip()
+
+        # Tenta converter direto se já for decimal
+        try:
+            if re.fullmatch(r"^-?\d+([.,]\d+)?$", s_coord):
+                return s_coord.replace(",", ".")
+        except Exception:
+            pass
+
+        # Extrai apenas os números (incluindo decimais)
+        # Ignora símbolos como º, ', ", etc.
+        parts = re.findall(r"(\d+(?:[.,]\d+)?)", s_coord)
+
+        if not parts:
+            return "0.0"
+
+        try:
+            deg = float(parts[0].replace(",", "."))
+            mins = float(parts[1].replace(",", ".")) if len(parts) > 1 else 0.0
+            sec = float(parts[2].replace(",", ".")) if len(parts) > 2 else 0.0
+
+            decimal = deg + (mins / 60.0) + (sec / 3600.0)
+
+            # Assumimos negativo por padrão, a menos que indique N, E ou L (Leste).
+            is_positive = any(c in s_coord.upper() for c in ["N", "E", "L"])
+            if not is_positive:
+                decimal = -decimal
+
+            # Retorna como string garantindo o ponto
+            return str(round(decimal, 8)).replace(",", ".")
+        except Exception:
+            return "0.0"
