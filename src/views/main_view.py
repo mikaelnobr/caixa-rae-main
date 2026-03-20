@@ -107,23 +107,17 @@ class MainView:
 
             doc_controller = DocumentController(api_key=self.api_key)
 
-            try:
-                # Chamada batch: extrai todos os textos e faz 1 chamada Gemini
-                batch_results = doc_controller.process_batch(
-                    pdf_files,
-                    self.resp_selecionado,
-                    on_status=lambda msg: status_container.write(msg),
-                )
+            for idx, pdf in enumerate(pdf_files):
+                try:
+                    dados, excel_bytes, nome_proponente = doc_controller.process_single_pdf(
+                        pdf,
+                        self.resp_selecionado,
+                        on_status=lambda msg: status_container.write(msg),
+                    )
 
-                # Processar resultados individuais (sync Sheets + coleta Excel)
-                for idx, (dados, excel_bytes, nome_proponente) in enumerate(
-                    batch_results
-                ):
-                    pdf = pdf_files[idx]
                     status_container.write(
                         f"☁️ Sincronizando **{pdf.name}** com Google Sheets..."
                     )
-
                     sheets_ok, sheets_msg = doc_controller.sync_to_sheets(
                         dados, self.resp_selecionado
                     )
@@ -140,17 +134,14 @@ class MainView:
                         )
                     ok_count += 1
 
-                status_container.update(
-                    label=f"✅ {ok_count}/{total} laudos processados com sucesso!",
-                    state="complete",
-                )
+                except Exception as e:
+                    erros.append(f"❌ {pdf.name}: {e}")
+                    status_container.write(f"❌ Erro em **{pdf.name}**: {e}")
 
-            except Exception as e:
-                erros.append(f"❌ Erro no processamento em lote: {e}")
-                status_container.update(
-                    label="❌ Erro no processamento",
-                    state="error",
-                )
+            status_container.update(
+                label=f"✅ {ok_count}/{total} laudos processados com sucesso!",
+                state="complete" if ok_count > 0 else "error",
+            )
 
             gc.collect()
 
