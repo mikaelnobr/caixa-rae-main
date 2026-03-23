@@ -21,7 +21,7 @@ class GeminiService:
         """
         Chama a API Gemini com retry em caso de rate limit (429).
         """
-        for d in [15, 30, 60]:  # retry delays
+        for d in [2, 4, 8]:  # retry delays
             try:
                 res = self.client.models.generate_content(
                     model="gemini-3-flash-preview",
