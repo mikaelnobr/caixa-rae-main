@@ -199,6 +199,10 @@ class MainView:
         Renderiza a interface principal da aplicação.
         """
         st.title("🏛️ Extrator de Laudo")
+        
+        st.markdown(
+            "**[🔗 Acessar Planilha RAE Atualizada](https://1drv.ms/f/c/40a54d6a68848790/IgAaP85iAmmPSIRXsZ_jaj5UAeXMSLfuK1cENOFMnGLRaqw?e=2aJxm0)**"
+        )
 
         self.render_sidebar()
 
